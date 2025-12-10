@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Order Board - Restaurant Management (Working & Real-Time)</title>
+    
+    <style>
+        /*
+         * -----------------------------------------------------------------
+         * 🎨 CSS STYLES 🎨
+         * -----------------------------------------------------------------
+         */
+
+        /* ----------------------- CSS Variables for Theming ----------------------- */
+        :root {
+            /* Light Mode Defaults */
+            --color-primary: #007bff;
+            --color-primary-hover: #0056b3;
+            --color-text: #212529;
+            --color-background: #f8f9fa;
+            --color-card-background: #ffffff;
+            --color-border: #dee2e6;
+            --color-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --color-record: #dc3545; /* Red for recording/high priority */
+            --color-priority-high: #ff9800; /* Orange */
+            --color-priority-low: #6c757d; /* Gray */
+        }
+
+        /* ----------------------- Dark Mode Overrides ----------------------- */
+        [data-theme='dark'] {
+            --color-primary: #4da6ff;
+            --color-primary-hover: #1e88e5;
+            --color-text: #f8f9fa;
+            --color-background: #212529;
+            --color-card-background: #343a40;
+            --color-border: #495057;
+            --color-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --color-record: #ff6b6b;
+            --color-priority-high: #ffb74d;
+            --color-priority-low: #adb5bd;
+        }
+
+        /* ----------------------- Base Styles ----------------------- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--color-background);
+            color: var(--color-text);
+            transition: background-color 0.3s, color 0.3s;
+            padding: 20px;
+        }
+
+        /* ----------------------- Header and Controls ----------------------- */
+        header {
+            background-color: var(--color-card-background);
+            box-shadow: var(--color-shadow);
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            color: var(--color-primary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        #theme-toggle {
+            background-color: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        /* ----------------------- Order Form Modal/Panel ----------------------- */
+        #add-order-form {
+            background-color: var(--color-card-background);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: var(--color-shadow);
+            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        #add-order-form input[type="text"],
+        #add-order-form textarea,
+        #add-order-form input[type="number"],
+        #add-order-form select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            background-color: var(--color-background);
+            color: var(--color-text);
+            transition: border-color 0.2s;
+        }
+
+        .form-group-flex {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* NEW: Quantity Input */
+        #total-items-qty {
+            max-width: 100px;
+        }
+
+        /* Recording Interface */
+        .recording-controls {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 0;
+            border-top: 1px solid var(--color-border);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .rec-button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: opacity 0.2s;
+        }
+
+        #start-record {
+            background-color: var(--color-record);
+            color: white;
+        }
+        
+        #start-record.recording {
+            opacity: 0.7;
+            animation: pulse 1s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        #stop-record {
+            background-color: var(--color-primary);
+            color: white;
+            display: none; 
+        }
+        
+        .recording-status {
+            margin-left: 10px;
+            color: var(--color-record);
+            font-weight: bold;
+        }
+
+        #add-order-form button[type="submit"] {
+            grid-column: 1 / -1;
+            padding: 12px;
+            background-color: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+            margin-top: 15px;
+        }
+
+        /* ----------------------- Order Board Grid & Panels ----------------------- */
+        .order-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 20px;
+        }
+
+        .status-panel {
+            background-color: var(--color-card-background);
+            border-radius: 8px;
+            box-shadow: var(--color-shadow);
+            padding: 15px;
+            min-height: 400px;
+            border-top: 5px solid;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Panel Colors */
+        .status-new { border-top-color: #007bff; }
+        .status-preparing { border-top-color: #ffc107; }
+        .status-ready { border-top-color: #28a745; }
+        .status-collected { border-top-color: #6c757d; }
+
+        .status-panel h2 {
+            margin-bottom: 15px;
+            font-size: 1.25rem;
+        }
+        
+        .orders-container {
+            /* Enable drop area */
+            flex-grow: 1;
+            min-height: 50px; 
+            padding: 5px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .orders-container.drag-over {
+            background-color: rgba(0, 123, 255, 0.1);
+            border: 2px dashed var(--color-primary);
+        }
+
+        /* ----------------------- Order Card ----------------------- */
+        .order-card {
+            background-color: var(--color-background);
+            border: 1px solid var(--color-border);
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .order-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+        }
+
+        .order-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .order-card h3 {
+            font-size: 1.1rem;
+            color: var(--color-primary);
+        }
+        
+        .priority-tag {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .priority-tag-high {
+            background-color: var(--color-record); 
+        }
+        .priority-tag-medium {
+            background-color: var(--color-priority-high);
+        }
+        .priority-tag-low {
+            background-color: var(--color-priority-low);
+        }
+
+        .order-meta-data {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed var(--color-border);
+            padding-bottom: 5px;
+        }
+
+        .wait-time {
+            font-weight: bold;
+            color: var(--color-record);
+        }
+        
+        .order-audio-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding-top: 5px;
+            border-top: 1px dashed var(--color-border);
+        }
+
+        .audio-playback-btn {
+            background-color: #17a2b8;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background-color 0.2s;
+        }
+        
+        /* Add button styling for status changes */
+        .status-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .status-buttons button {
+            background-color: #f0f0f0;
+            border: 1px solid var(--color-border);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background-color 0.15s;
+        }
+        [data-theme='dark'] .status-buttons button {
+            background-color: #495057;
+            color: var(--color-text);
+        }
+        .status-buttons button:hover {
+            opacity: 0.8;
+        }
+
+
+        /* ----------------------- Responsive (Unchanged) ----------------------- */
+        @media (max-width: 992px) {
+            .order-board {
+                grid-template-columns: repeat(2, 1fr); 
+            }
+        }
+        @media (max-width: 576px) {
+            .order-board {
+                grid-template-columns: 1fr; 
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Live Order Board 🍜</h1>
+        <div class="controls">
+            <button id="theme-toggle" aria-label="Toggle Dark/Light Mode">🌙</button>
+        </div>
+    </header>
+
+    <section id="order-form-section">
+        <form id="add-order-form">
+            <input type="text" id="customer-name" placeholder="Customer Name (e.g., Table 5)" required>
+            
+            <div class="form-group-flex">
+                <input type="number" id="total-items-qty" placeholder="Total Items (Qty)" min="1" value="1" required>
+                <select id="order-priority" required>
+                    <option value="Low">Priority: Low (Standard)</option>
+                    <option value="Medium">Priority: Medium (Waiting)</option>
+                    <option value="High">Priority: High (Rush/Complaint)</option>
+                </select>
+            </div>
+            
+            <input type="text" id="item-summary" placeholder="Item Summary (Transcription will populate this)" required>
+            <textarea id="order-notes" placeholder="Notes (Transcription/Staff input)" rows="2"></textarea>
+            
+            <div class="recording-controls">
+                <button type="button" id="start-record" class="rec-button">🎙️ Start Recording</button>
+                <button type="button" id="stop-record" class="rec-button">⏹️ Stop & Transcribe</button>
+                <span id="recording-status" class="recording-status"></span>
+            </div>
+            
+            <button type="submit">➕ Submit New Order</button>
+        </form>
+    </section>
+
+    <section class="order-board">
+        <div class="status-panel status-new" data-status="New">
+            <h2>🔔 New</h2>
+            <div class="orders-container" id="New-container"></div>
+        </div>
+        <div class="status-panel status-preparing" data-status="Preparing">
+            <h2>🧑‍🍳 Preparing</h2>
+            <div class="orders-container" id="Preparing-container"></div>
+        </div>
+        <div class="status-panel status-ready" data-status="Ready">
+            <h2>✅ Ready</h2>
+            <div class="orders-container" id="Ready-container"></div>
+        </div>
+        <div class="status-panel status-collected" data-status="Collected">
+            <h2>📦 Collected</h2>
+            <div class="orders-container" id="Collected-container"></div>
+        </div>
+    </section>
+
+    <script type="module">
+        /*
+         * -----------------------------------------------------------------
+         * 💡 JAVASCRIPT LOGIC (FIREBASE INTEGRATED) 💡
+         * -----------------------------------------------------------------
+         */
+        
+        // ----------------------- 🟢 FIREBASE IMPORTS 🟢 -----------------------
+        // Imports the necessary modular functions from Firebase SDK v9
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            doc, 
+            updateDoc, 
+            onSnapshot, 
+            query, 
+            orderBy, 
+            Timestamp 
+        } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js';
+
+
+        // ----------------------- 🟢 FIREBASE CONFIGURATION 🟢 -----------------------
+        // NOTE: This config is public and only allows access to a specific database project.
+        const firebaseConfig = {
+            apiKey: "AIzaSyA42AEfO6mGGSTKa-2QcR9hFEj3xBhRuoc",
+            authDomain: "live-order-board-ab721.firebaseapp.com",
+            projectId: "live-order-board-ab721",
+            storageBucket: "live-order-board-ab721.firebasestorage.app",
+            messagingSenderId: "157405136208",
+            appId: "1:157405136208:web:a92945688cd53571305855"
+        };
+
+        // Initialize Firebase App and Firestore Database
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const ordersCollectionRef = collection(db, "orders");
+        
+        console.log("[FIREBASE] Initialized Firebase and Firestore is ready.");
+
+
+        // ----------------------- Data Management -----------------------
+        const STORAGE_KEY_THEME = 'restaurantOrderBoard_theme'; 
+        let orders = []; 
+        const STATUSES = ['New', 'Preparing', 'Ready', 'Collected'];
+        let waitTimeInterval = null; 
+
+        // ----------------------- Firebase Data Operations -----------------------
+
+        /**
+         * Adds a new order to the Firestore database.
+         * @param {object} orderData - The order object to save.
+         */
+        async function addOrderToFirestore(orderData) {
+            const { id, ...dataToSave } = orderData; 
+            try {
+                await addDoc(ordersCollectionRef, {
+                    ...dataToSave,
+                    timestamp: Timestamp.fromDate(new Date(dataToSave.timestamp))
+                });
+                console.log("Order added to Firestore successfully.");
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        }
+
+        /**
+         * Updates the status of an existing order in Firestore.
+         * @param {string} orderId - The Firestore document ID of the order.
+         * @param {string} newStatus - The new status value.
+         */
+        async function updateOrderStatusInFirestore(orderId, newStatus) {
+            try {
+                const orderDocRef = doc(db, "orders", orderId);
+                await updateDoc(orderDocRef, {
+                    status: newStatus
+                });
+                console.log(`Order ${orderId} status updated to ${newStatus}`);
+            } catch (e) {
+                console.error("Error updating document: ", e);
+            }
+        }
+        
+        /**
+         * Starts the real-time listener for orders from Firestore.
+         */
+        function startRealtimeOrdersListener() {
+            // Query orders: Order by timestamp descending (newest first).
+            const q = query(ordersCollectionRef, orderBy("timestamp", "desc"));
+
+            onSnapshot(q, (snapshot) => {
+                orders = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    // Convert Firestore Timestamp back to ISO string for existing functions
+                    const isoTimestamp = data.timestamp ? data.timestamp.toDate().toISOString() : new Date().toISOString(); 
+                    orders.push({ 
+                        id: doc.id, // Use Firestore document ID
+                        ...data,
+                        timestamp: isoTimestamp
+                    });
+                });
+                // When data changes in Firestore, re-render the board
+                renderOrderBoard(); 
+                console.log("Real-time order update received and board re-rendered.");
+            }, (error) => {
+                console.error("Error listening to orders: ", error);
+            });
+        }
+
+        // ----------------------- Wait Time Calculation -----------------------
+
+        function calculateWaitTime(isoTimestamp) {
+            const placedTime = new Date(isoTimestamp);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - placedTime) / 1000);
+
+            if (diffInSeconds < 0) return "0s";
+
+            const minutes = Math.floor(diffInSeconds / 60);
+            const seconds = diffInSeconds % 60;
+
+            if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            } else {
+                return `${seconds}s`;
+            }
+        }
+
+        function updateLiveWaitTimes() {
+            document.querySelectorAll('.order-card[data-status="New"], .order-card[data-status="Preparing"]').forEach(card => {
+                const orderId = card.getAttribute('data-id');
+                const order = orders.find(o => o.id === orderId);
+                const timeElement = card.querySelector('.wait-time');
+
+                if (order && timeElement) {
+                    timeElement.textContent = calculateWaitTime(order.timestamp);
+                }
+            });
+        }
+
+        function startWaitTimeTimer() {
+            if (waitTimeInterval) {
+                clearInterval(waitTimeInterval);
+            }
+            waitTimeInterval = setInterval(updateLiveWaitTimes, 1000);
+        }
+
+        // ----------------------- Audio and Transcription (Placeholder) -----------------------
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlobData = null; 
+        let stream = null; 
+        const recStatus = document.getElementById('recording-status');
+        const recStartBtn = document.getElementById('start-record');
+        const recStopBtn = document.getElementById('stop-record');
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        async function transcribeAudio() {
+            recStatus.textContent = 'Transcribing...';
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    // --- SIMULATED TRANSCRIPTION RESULT ---
+                    const summary = "3 Pizzas: 1 Pepperoni, 1 Veggie, 1 plain.";
+                    const notes = "One pizza needs to be gluten-free, please rush the drinks.";
+                    const priority = "High"; 
+
+                    recStatus.textContent = 'Transcription Complete!';
+
+                    document.getElementById('item-summary').value = summary;
+                    document.getElementById('order-notes').value = notes;
+                    document.getElementById('order-priority').value = priority;
+                    
+                    resolve({ summary, notes, priority });
+                }, 1500);
+            });
+        }
+
+        async function startRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') return;
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                audioBlobData = null; 
+
+                mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioBlobData = await blobToBase64(audioBlob);
+                    
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+
+                    await transcribeAudio();
+                    
+                    recStartBtn.classList.remove('recording');
+                    recStartBtn.style.display = 'block';
+                    recStopBtn.style.display = 'none';
+                };
+
+                mediaRecorder.start();
+                recStatus.textContent = 'Recording...';
+                recStartBtn.classList.add('recording');
+                recStartBtn.style.display = 'none';
+                recStopBtn.style.display = 'block';
+
+            } catch (err) {
+                console.error("Could not start recording:", err);
+                recStatus.textContent = 'Microphone access denied or failed.';
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recStatus.textContent = 'Processing Recording...';
+            }
+        }
+
+        function playAudio(base64String) {
+            if (!base64String) {
+                alert('No audio recording found for this order.');
+                return;
+            }
+            const audio = new Audio(base64String);
+            audio.play().catch(e => console.error("Error playing audio:", e));
+        }
+
+        // ----------------------- Order Creation and Management -----------------------
+
+        function handleAddOrder(event) {
+            event.preventDefault();
+
+            const customerName = document.getElementById('customer-name').value.trim();
+            const itemSummary = document.getElementById('item-summary').value.trim();
+            const notes = document.getElementById('order-notes').value.trim();
+            const totalQuantity = parseInt(document.getElementById('total-items-qty').value, 10);
+            const priority = document.getElementById('order-priority').value;
+
+            if (!customerName || !itemSummary || isNaN(totalQuantity) || totalQuantity <= 0) {
+                alert('Customer Name, Item Summary, and Total Quantity are required.');
+                return;
+            }
+
+            const newOrder = {
+                id: Date.now().toString(), 
+                customerName,
+                itemSummary,
+                notes,
+                totalQuantity, 
+                priority,      
+                timestamp: new Date().toISOString(),
+                status: 'New',
+                audioRecording: audioBlobData
+            };
+
+            // Send to Firestore
+            addOrderToFirestore(newOrder); 
+
+            // Clear the form and reset audio state
+            document.getElementById('add-order-form').reset();
+            document.getElementById('total-items-qty').value = 1; 
+            document.getElementById('order-priority').value = 'Low'; 
+            audioBlobData = null;
+            recStatus.textContent = '';
+        }
+
+        function updateOrderStatus(orderId, newStatus) {
+            if (!STATUSES.includes(newStatus)) {
+                console.error(`Invalid status: ${newStatus}`);
+                return;
+            }
+
+            // Update in Firestore
+            updateOrderStatusInFirestore(orderId, newStatus);
+        }
+
+        // ----------------------- UI Rendering and Interaction -----------------------
+
+        function formatTimestamp(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function createOrderCardHTML(order) {
+            const statusButtons = STATUSES.map(status => {
+                if (status !== order.status) {
+                    return `<button class="btn-${status.toLowerCase()}" data-id="${order.id}" data-new-status="${status}">
+                                Move to ${status}
+                            </button>`;
+                }
+                return '';
+            }).join('');
+
+            const notesHTML = order.notes
+                ? `<p class="order-notes">Notes: ${order.notes}</p>`
+                : '';
+            
+            const audioPlaybackHTML = order.audioRecording 
+                ? `
+                <div class="order-audio-box">
+                    <span>Voice Note Attached</span>
+                    <button class="audio-playback-btn" data-id="${order.id}">
+                        ▶️ Replay Audio
+                    </button>
+                </div>
+                `
+                : '';
+
+            const priorityClass = `priority-tag-${order.priority.toLowerCase()}`;
+            
+            const showWaitTime = order.status === 'New' || order.status === 'Preparing';
+            const waitTimeDisplay = showWaitTime 
+                ? `<span class="wait-time">${calculateWaitTime(order.timestamp)}</span>`
+                : `<span>Status: ${order.status}</span>`;
+
+            return `
+                <div class="order-card" draggable="true" data-id="${order.id}" data-status="${order.status}">
+                    <div class="order-card-header">
+                        <h3>${order.customerName}</h3>
+                        <span class="priority-tag ${priorityClass}">${order.priority} Priority</span>
+                    </div>
+                    
+                    <div class="order-meta-data">
+                        <small>Time: ${formatTimestamp(order.timestamp)}</small>
+                        ${waitTimeDisplay}
+                    </div>
+
+                    <p><strong>Total Items:</strong> <span style="color: var(--color-record); font-weight: bold;">${order.totalQuantity}</span></p>
+                    <p><strong>Summary:</strong> ${order.itemSummary}</p>
+                    ${notesHTML}
+                    ${audioPlaybackHTML}
+                    <div class="status-buttons">
+                        ${statusButtons}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOrderBoard() {
+            const groupedOrders = orders.reduce((acc, order) => {
+                if (!acc[order.status]) {
+                    acc[order.status] = [];
+                }
+                acc[order.status].push(order);
+                return acc;
+            }, {});
+
+            STATUSES.forEach(status => {
+                const container = document.getElementById(`${status}-container`);
+                if (container) {
+                    const statusOrders = groupedOrders[status] || [];
+                    
+                    // Sort by Priority (High > Medium > Low) then by time (newer first)
+                    statusOrders.sort((a, b) => {
+                        const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1, 'Collected': 0, 'Ready': 0 };
+                        const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+                        if (priorityDiff !== 0) return priorityDiff;
+                        
+                        // Use timestamp for secondary sort (newer orders first)
+                        return new Date(b.timestamp) - new Date(a.timestamp);
+                    });
+
+                    container.innerHTML = statusOrders.map(createOrderCardHTML).join('');
+                }
+            });
+
+            // Crucial: Re-attach all event listeners after re-rendering the cards
+            attachEventListeners();
+            startWaitTimeTimer(); 
+        }
+
+        // ----------------------- Drag-and-Drop Handlers -----------------------
+        let draggedOrderId = null;
+        function handleDragStart(e) {
+            draggedOrderId = e.target.getAttribute('data-id');
+            e.dataTransfer.setData('text/plain', draggedOrderId); 
+            e.target.classList.add('dragging');
+        }
+        function handleDragOver(e) {
+            e.preventDefault(); 
+            const target = e.currentTarget;
+            if (target && target.classList.contains('orders-container')) {
+                target.classList.add('drag-over');
+            }
+        }
+        function handleDragLeave(e) {
+            const target = e.currentTarget;
+            if (target && target.classList.contains('orders-container')) {
+                target.classList.remove('drag-over');
+            }
+        }
+        function handleDrop(e) {
+            e.preventDefault();
+            const targetContainer = e.currentTarget;
+            targetContainer.classList.remove('drag-over');
+            
+            const newStatus = targetContainer.parentElement.getAttribute('data-status');
+            const orderId = draggedOrderId || e.dataTransfer.getData('text/plain');
+            
+            if (orderId && newStatus) {
+                updateOrderStatus(orderId, newStatus);
+            }
+            draggedOrderId = null;
+        }
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.orders-container').forEach(container => {
+                container.classList.remove('drag-over');
+            });
+        }
+
+        // ----------------------- Theme Toggling -----------------------
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem(STORAGE_KEY_THEME, newTheme);
+            document.getElementById('theme-toggle').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.getElementById('theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // ----------------------- Initialization and Event Binding -----------------------
+        function attachEventListeners() {
+            // Static form/button listeners (only need to attach once)
+            document.getElementById('add-order-form').onsubmit = handleAddOrder;
+            recStartBtn.onclick = startRecording;
+            recStopBtn.onclick = stopRecording;
+            document.getElementById('theme-toggle').onclick = toggleTheme;
+
+            // Delegated click handler for status buttons and audio playback (attached to the board container)
+            document.querySelectorAll('.order-board').forEach(board => {
+                // Ensure only one delegated listener is attached per board
+                board.onclick = (e) => {
+                    const statusButton = e.target.closest('.status-buttons button');
+                    const audioButton = e.target.closest('.audio-playback-btn');
+                    
+                    if (statusButton) {
+                        const orderId = statusButton.getAttribute('data-id');
+                        const newStatus = statusButton.getAttribute('data-new-status');
+                        if (orderId && newStatus) {
+                            updateOrderStatus(orderId, newStatus);
+                        }
+                    } 
+                    
+                    if (audioButton) {
+                        const orderId = audioButton.getAttribute('data-id');
+                        const order = orders.find(o => o.id === orderId);
+                        if (order && order.audioRecording) {
+                            playAudio(order.audioRecording);
+                        }
+                    }
+                };
+            });
+
+            // Drag-and-Drop Listeners must be re-attached to all dynamic elements
+            
+            // 1. Order Cards (Drag Source)
+            document.querySelectorAll('.order-card').forEach(card => {
+                // Remove existing listeners before adding new ones to prevent duplicates
+                card.removeEventListener('dragstart', handleDragStart);
+                card.removeEventListener('dragend', handleDragEnd);
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragend', handleDragEnd);
+            });
+            
+            // 2. Orders Containers (Drop Targets)
+            document.querySelectorAll('.orders-container').forEach(container => {
+                // Remove existing listeners before adding new ones to prevent duplicates
+                container.removeEventListener('dragover', handleDragOver);
+                container.removeEventListener('dragleave', handleDragLeave);
+                container.removeEventListener('drop', handleDrop);
+                
+                container.addEventListener('dragover', handleDragOver);
+                container.addEventListener('dragleave', handleDragLeave);
+                container.addEventListener('drop', handleDrop);
+            });
+        }
+
+        // Main entry point
+        function init() {
+            initializeTheme();
+            // Start the real-time connection to Firebase Firestore.
+            // This function is the root of the real-time functionality.
+            startRealtimeOrdersListener();
+            // Note: renderOrderBoard and attachEventListeners are called inside startRealtimeOrdersListener's onSnapshot.
+        }
+
+        init();
+    </script>
+</body>
+</html>
